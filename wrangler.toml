@@ -1,4 +1,4 @@
-name = "firebase-sw-handler"
+name = "firebase-messaging-sw"
 main = "src/index.js"
 compatibility_date = "2026-05-15"
 
