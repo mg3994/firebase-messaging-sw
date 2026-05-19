@@ -20,11 +20,18 @@ export default {
       messaging.onBackgroundMessage((payload) => {
         console.log('[firebase-messaging-sw.js] Received message:', payload);
         
-        // Fix: Always handle notification display manually to ensure 'data' is preserved
-        const notificationTitle = payload.notification?.title || payload.data?.title || 'New Notification';
+        // CRITICAL FIX: If the payload already has a 'notification' object, 
+        // Firebase automatically shows it. Do NOT manually show it again or you get duplicates.
+        if (payload.notification) {
+          console.log('Firebase is handling this display natively.');
+          return;
+        }
+
+        // Only manually build it if you are sending a DATA-ONLY payload
+        const notificationTitle = payload.data?.title || 'New Notification';
         const notificationOptions = {
-          body: payload.notification?.body || payload.data?.body,
-          icon: payload.notification?.image || payload.data?.image || '/favicon.ico',
+          body: payload.data?.body,
+          icon: payload.data?.image || '/favicon.ico',
           data: {
             url: payload.data?.url || '/'
           }
@@ -37,9 +44,16 @@ export default {
       self.addEventListener("notificationclick", (event) => {
         event.notification.close();
         
-        const targetUrl = event.notification.data?.url 
-          ? new URL(event.notification.data.url, self.location.origin).href 
-          : self.location.origin + "/";
+        // Support BOTH Firebase's native link property AND your custom data block URL
+        let targetUrl = event.notification.data?.url || event.notification.click_action;
+        
+        // Fallback to origin if nothing is found
+        if (!targetUrl) {
+          targetUrl = self.location.origin + "/";
+        } else {
+          // Ensure it's a fully qualified URL string
+          targetUrl = new URL(targetUrl, self.location.origin).href;
+        }
 
         event.waitUntil(
           clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
